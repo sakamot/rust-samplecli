@@ -1,4 +1,6 @@
 use clap::Clap;
+use std::fs::File;
+use std::io::{stdin, BufRead, BufReader};
 
 #[derive(Clap, Debug)]
 #[clap(
@@ -18,47 +20,77 @@ struct Opts {
     formula_file: Option<String>, // 任意のオプション
 }
 
+struct RpnCalculator(bool);
+
+impl RpnCalculator {
+    pub fn new(verbose: bool) -> Self {
+        Self(verbose)
+    }
+
+    pub fn eval(&self, formula: &str) -> i32 {
+        // スタック
+        // pop()は末尾から行われるのでrev()をする
+        // collect(): イテレータをコレクションに変換するめそっど
+        // Vec<_>:
+        // Vecの要素型をわざわざ指定しなくても_で埋めておくことでコンパイラが適切な型を決めてくれる
+        let mut tokens = formula.split_whitespace().rev().collect::<Vec<_>>();
+        self.eval_liner(&mut tokens)
+    }
+
+    pub fn eval_liner(&self, tokens: &mut Vec<&str>) -> i32 {
+        let mut stack = Vec::new();
+
+        while let Some(token) = tokens.pop() {
+            if let Ok(x) = token.parse::<i32>() {
+                stack.push(x);
+            } else {
+                let y = stack.pop().expect("invalid syntax");
+                let x = stack.pop().expect("invalid syntax");
+
+                let res = match token {
+                    "+" => x + y,
+                    "-" => x - y,
+                    "*" => x * y,
+                    "/" => x / y,
+                    _ => panic!("invalid token")
+                };
+                stack.push(res);
+            }
+
+            // -vオプションが指定されている場合は、この時点でのトークンとスタックの状態を出力
+            if self.0 {
+                println!("{:?} {:?}", tokens, stack);
+            }
+        }
+
+        if stack.len() == 1 {
+            stack[0]
+        } else {
+            panic!("invalid syntax")
+        }
+    }
+}
+
 fn main() {
     let opts = Opts::parse();
 
-    match opts.formula_file {
-        Some(file) => println!("File specified: {}", file),
-        None => println!("No file specified."),
+    if let Some(path) = opts.formula_file {
+        let f = File::open(path).unwrap();
+        let reader = BufReader::new(f);
+        run(reader, opts.verbose);
+    } else {
+        let stdin = stdin();
+        let reader = stdin.lock();
+        run(reader, opts.verbose);
     }
-
-    println!("Is verbosity specified?: {}", opts.verbose);
 }
 
-/*
-use clap::{App, Arg};
+fn run<R: BufRead>(reader: R, verbose: bool) {
+    let calc = RpnCalculator::new(verbose);
 
-fn main() {
-    let matches = App::new("My RPM program")
-        .version("1.0.0")
-        .author("Your Name")
-        .about("Super awesome sample RPM calculator")
-        .arg(
-            Arg::with_name("formula_file") // 数式を記載するファイルの指定
-                .about("Formulas written in RPM")
-                .value_name("FILE")
-                .index(1) // 1番目の引数
-                .required(false), // 必須項目ではない
-        )
-        .arg(
-            Arg::with_name("verbose") // 出力を多くするためのオプション
-                .about("Sets the level of verbosity")
-                .short('v')
-                .long("verbose")
-                .required(false),
-        )
-        .get_matches();
-
-    match matches.value_of("formula_file") {
-        Some(file) => println!("File specified: {}", file),
-        None => println!("No file specified."),
+    for line in reader.lines() {
+        let line = line.unwrap();
+        let answer = calc.eval(&line);
+        println!("{}", answer);
     }
-
-    let verbose = matches.is_present("verbose");
-    println!("Is verbosity specified?: {}", verbose);
 }
-*/
