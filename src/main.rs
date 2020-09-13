@@ -52,6 +52,7 @@ impl RpnCalculator {
                     "-" => x - y,
                     "*" => x * y,
                     "/" => x / y,
+                    "%" => x % y,
                     _ => panic!("invalid token")
                 };
                 stack.push(res);
@@ -92,5 +93,28 @@ fn run<R: BufRead>(reader: R, verbose: bool) {
         let line = line.unwrap();
         let answer = calc.eval(&line);
         println!("{}", answer);
+    }
+}
+
+// アトリビュート
+// cfg: コンパイル時の設定によって有効無効を切り替えられる
+// ↓の場合はbuildやrunでは無効になり、testの時だけ有効になる
+#[cfg(test)]
+
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ok() {
+        let calc = RpnCalculator::new(false);
+        assert_eq!(calc.eval("5"), 5);
+        assert_eq!(calc.eval("50"), 50);
+        assert_eq!(calc.eval("-50"), -50);
+
+        assert_eq!(calc.eval("2 3 +"), 5);
+        assert_eq!(calc.eval("2 3 *"), 6);
+        assert_eq!(calc.eval("2 3 -"), -1);
+        assert_eq!(calc.eval("2 3 /"), 0);
+        assert_eq!(calc.eval("2 3 %"), 2);
     }
 }
